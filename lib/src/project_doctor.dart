@@ -73,7 +73,7 @@ class ProjectDoctor {
     }
 
     _checkFlutter(pubspecs.values);
-    _checkGeneratedParts(layers);
+    _checkGeneratedParts(layers, packageRoots);
 
     if (!_diagnostics.any((item) => item.level == DoctorLevel.error)) {
       _success('Project validation passed.');
@@ -498,7 +498,10 @@ class ProjectDoctor {
     }
   }
 
-  void _checkGeneratedParts(List<_Layer> layers) {
+  void _checkGeneratedParts(
+    List<_Layer> layers,
+    Map<String, String> packageRoots,
+  ) {
     final directive = RegExp(
       r'''(?:part|import)\s+['"]([^'"]+\.g\.dart)['"]\s*;''',
     );
@@ -512,9 +515,11 @@ class ProjectDoctor {
         }
         final content = source.readAsStringSync();
         for (final match in directive.allMatches(content)) {
-          final generated = p.normalize(
-            p.join(source.parent.path, match.group(1)!),
-          );
+          final reference = match.group(1)!;
+          final generated = reference.startsWith('package:')
+              ? _resolvePackageReference(reference, packageRoots)
+              : p.normalize(p.join(source.parent.path, reference));
+          if (generated == null) continue;
           if (!File(generated).existsSync()) missing.add(generated);
         }
       }
@@ -526,6 +531,21 @@ class ProjectDoctor {
     if (missing.isEmpty) {
       _success('Generated .g.dart files are present.');
     }
+  }
+
+  String? _resolvePackageReference(
+    String reference,
+    Map<String, String> packageRoots,
+  ) {
+    final packagePath = reference.substring('package:'.length);
+    final separator = packagePath.indexOf('/');
+    if (separator == -1) return null;
+    final packageName = packagePath.substring(0, separator);
+    final packageRoot = packageRoots[packageName];
+    if (packageRoot == null) return null;
+    return p.normalize(
+      p.join(packageRoot, 'lib', packagePath.substring(separator + 1)),
+    );
   }
 
   String? _hostedConstraint(Object value) {

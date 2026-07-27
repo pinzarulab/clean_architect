@@ -891,10 +891,40 @@ GeneratedFile _di(TemplateContext context) {
     );
   }
 
+  final objectBoxImport = context.config.localStorage == LocalStorage.objectbox
+      ? "import 'package:objectbox/objectbox.dart';\nimport '${_dataFileImport(context, p.join(_packageRoot(context.paths.data), 'lib', 'objectbox.g.dart'))}';\n"
+      : '';
+  final dioImport = context.config.network == NetworkClient.dio
+      ? "import 'package:dio/dio.dart';\n"
+      : '';
+  final localInitialization =
+      context.config.localStorage == LocalStorage.objectbox
+      ? '''
+    if (!get.isRegistered<Store>()) {
+      get.registerSingleton<Store>(await openStore());
+    }
+    final localDataSource = AuthLocalDataSourceImpl.init(get<Store>());'''
+      : '''
+    final localDataSource = await AuthLocalDataSourceImpl.init();''';
+  final remoteRegistration = context.config.network == NetworkClient.dio
+      ? '''
+  if (!get.isRegistered<AuthRemoteDataSource>()) {
+    final dio = Dio(BaseOptions(baseUrl: ''));
+    get.registerLazySingleton<AuthRemoteDataSource>(
+      () => AuthRemoteDataSource(dio),
+    );
+  }
+'''
+      : '''
+  // Register AuthRemoteDataSource before resolving the repository.
+''';
+
   return GeneratedFile(
     path: p.join(context.paths.di, 'auth_di.dart'),
     content:
         '''
+import 'package:get_it/get_it.dart';
+$dioImport$objectBoxImport
 import '${_dataFileImport(context, p.join(dataPaths.repositories, 'auth_repository_impl.dart'))}';
 import '${_dataFileImport(context, p.join(dataPaths.localDataSources, 'auth_local_data_source.dart'))}';
 import '${_dataFileImport(context, p.join(dataPaths.remoteDataSources, 'auth_remote_data_source.dart'))}';
@@ -905,41 +935,48 @@ import '${_domainImport(context, 'usecases/login_use_case.dart')}';
 import '${_domainImport(context, 'usecases/logout_use_case.dart')}';
 import '${_domainImport(context, 'usecases/save_auth_credentials_use_case.dart')}';
 
-class AuthDependencies {
-  const AuthDependencies({
-    required this.repository,
-    required this.loginUseCase,
-    required this.logoutUseCase,
-    required this.saveAuthCredentialsUseCase,
-    required this.getAuthCredentialsUseCase,
-    required this.clearAuthCredentialsUseCase,
-  });
-
-  final AuthRepository repository;
-  final LoginUseCase loginUseCase;
-  final LogoutUseCase logoutUseCase;
-  final SaveAuthCredentialsUseCase saveAuthCredentialsUseCase;
-  final GetAuthCredentialsUseCase getAuthCredentialsUseCase;
-  final ClearAuthCredentialsUseCase clearAuthCredentialsUseCase;
+Future<void> initAuthData(GetIt get) async {
+  if (!get.isRegistered<AuthLocalDataSource>()) {$localInitialization
+    get.registerLazySingleton<AuthLocalDataSource>(() => localDataSource);
+  }
+$remoteRegistration
+  if (!get.isRegistered<AuthRepository>()) {
+    get.registerLazySingleton<AuthRepository>(
+      () => AuthRepositoryImpl(
+        authRemoteDataSource: get<AuthRemoteDataSource>(),
+        localDataSource: get<AuthLocalDataSource>(),
+      ),
+    );
+  }
 }
 
-AuthDependencies buildAuthDependencies({
-  required AuthRemoteDataSource authRemoteDataSource,
-  required AuthLocalDataSource localDataSource,
-}) {
-  final repository = AuthRepositoryImpl(
-    authRemoteDataSource: authRemoteDataSource,
-    localDataSource: localDataSource,
-  );
-
-  return AuthDependencies(
-    repository: repository,
-    loginUseCase: LoginUseCase(repository),
-    logoutUseCase: LogoutUseCase(repository),
-    saveAuthCredentialsUseCase: SaveAuthCredentialsUseCase(repository),
-    getAuthCredentialsUseCase: GetAuthCredentialsUseCase(repository),
-    clearAuthCredentialsUseCase: ClearAuthCredentialsUseCase(repository),
-  );
+void initAuthDomain(GetIt get) {
+  if (!get.isRegistered<LoginUseCase>()) {
+    get.registerLazySingleton<LoginUseCase>(
+      () => LoginUseCase(get<AuthRepository>()),
+    );
+  }
+  if (!get.isRegistered<LogoutUseCase>()) {
+    get.registerLazySingleton<LogoutUseCase>(
+      () => LogoutUseCase(get<AuthRepository>()),
+    );
+  }
+  if (!get.isRegistered<SaveAuthCredentialsUseCase>()) {
+    get.registerLazySingleton<SaveAuthCredentialsUseCase>(
+      () => SaveAuthCredentialsUseCase(get<AuthRepository>()),
+    );
+  }
+  if (!get.isRegistered<GetAuthCredentialsUseCase>()) {
+    get.registerLazySingleton<GetAuthCredentialsUseCase>(
+      () => GetAuthCredentialsUseCase(get<AuthRepository>()),
+    );
+  }
+  if (!get.isRegistered<ClearAuthCredentialsUseCase>()) {
+    get.registerLazySingleton<ClearAuthCredentialsUseCase>(
+      () => ClearAuthCredentialsUseCase(get<AuthRepository>()),
+    );
+  }
+  // clean_architect:domain-registrations
 }
 ''',
   );

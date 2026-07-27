@@ -357,6 +357,31 @@ clean_architect:
 ''',
   ),
   _Scenario(
+    name: 'getx_manual_objectbox',
+    yaml: '''
+clean_architect:
+  structure: layered_packages
+  data_layout: type_first
+  state_management: getx
+  network: dio
+  local_storage: objectbox
+  dependency_injection: manual
+  use_asset_generator: false
+  use_either_failure: false
+  flutter:
+    create_presentation: false
+    platforms: [android, ios]
+  models:
+    use_freezed: true
+    use_json_serializable: true
+  paths:
+    domain: domain/lib
+    data: data/lib/features
+    presentation: presentation/lib
+    di: di/lib
+''',
+  ),
+  _Scenario(
     name: 'none_abstract_plain_feature_first',
     yaml: '''
 clean_architect:

@@ -330,6 +330,7 @@ data/lib/features/base_feature/remote/models/.gitkeep
 data/lib/features/base_feature/repositories/.gitkeep
 data/pubspec.yaml
 di/lib/.gitkeep
+di/lib/di.dart
 di/pubspec.yaml
 domain/lib/features/base_feature/entities/.gitkeep
 domain/lib/features/base_feature/repositories/.gitkeep
@@ -362,6 +363,7 @@ data/lib/features/auth/remote/models/login_request_dto.dart
 data/lib/features/auth/repositories/auth_repository_impl.dart
 data/pubspec.yaml
 di/lib/auth_di.dart
+di/lib/di.dart
 di/pubspec.yaml
 domain/lib/features/auth/entities/auth_credentials_entity.dart
 domain/lib/features/auth/entities/auth_token_entity.dart
@@ -399,6 +401,7 @@ data/lib/features/orders/remote/models/orders_dto.dart
 data/lib/features/orders/remote/orders_remote_data_source.dart
 data/lib/features/orders/repositories/orders_repository_impl.dart
 data/pubspec.yaml
+di/lib/di.dart
 di/lib/orders_di.dart
 di/pubspec.yaml
 domain/lib/features/orders/entities/orders_entity.dart
@@ -516,6 +519,7 @@ clean_architect:
 domain/lib/features/auth/...
 data/lib/features/auth/...
 di/lib/auth_di.dart
+di/lib/di.dart
 presentation/lib/controllers/auth_controller.dart
 presentation/lib/pages/login_page.dart
 ```
@@ -880,14 +884,31 @@ repository implementation, and controller. The generated use cases are
 dependency_injection: manual
 ```
 
-Manual mode generates simple DI builder files, for example:
+Manual mode generates a single GetIt bootstrap plus editable per-feature
+registration files:
 
 ```txt
+di/lib/di.dart
 di/lib/auth_di.dart
 di/lib/orders_di.dart
 ```
 
-Use this when you want explicit constructors and simple dependency wiring you can edit by hand.
+`initDi` initializes every feature's data dependencies first and domain use
+cases second. Local storage is awaited before remote sources and repositories
+are registered. Generated registrations use `isRegistered` guards, so startup
+and generator reruns remain idempotent. Presentation calls the bootstrap before
+`runApp`:
+
+```dart
+WidgetsFlutterBinding.ensureInitialized();
+await initDi(get: GetIt.instance);
+runApp(const CleanArchitectApp());
+```
+
+Creating another feature patches the root bootstrap. Creating a use case or an
+operation patches that feature's domain registrations. In `vertical_packages`,
+the equivalent bootstrap lives at `app/lib/di/bootstrap.dart` and each feature
+exports its registration functions from its public library.
 
 ### Injectable
 
@@ -1191,6 +1212,7 @@ then runs dependency resolution, code generation, analysis in every layer, and t
 | `default_getx_manual_dio_secure` | Layered packages, GetX, manual DI, Dio, secure storage |
 | `bloc_injectable_hive_feature_first` | Feature first, Bloc, Injectable, Hive CE |
 | `provider_injectable_objectbox` | Layered packages, type-first data layout, Provider, Injectable, ObjectBox |
+| `getx_manual_objectbox` | Layered packages, type-first data layout, GetX, manual GetIt registration, ObjectBox |
 | `none_abstract_plain_feature_first` | Feature first, no state package, abstract sources, plain Dart models |
 | `either_enabled` | Layered packages with `Either<Failure, T>` returns |
 | `shared_preferences_json_only_custom_paths` | Shared preferences, JSON-only models, and custom public layer paths |

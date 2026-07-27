@@ -10,6 +10,7 @@ import 'data_paths.dart';
 import 'file_writer.dart';
 import 'generator.dart';
 import 'generated_file.dart';
+import 'manual_di_patcher.dart';
 import 'operation_patcher.dart';
 import 'operation_kind.dart';
 import 'path_resolver.dart';
@@ -208,6 +209,12 @@ class CleanArchitectCli {
     final appPubspecPatch = _planVerticalAppPubspecPatch(args, config);
     if (appPubspecPatch != null) files.add(appPubspecPatch);
 
+    final manualDi = ManualDiPatcher(config);
+    if (requestedFeature != null) {
+      final bootstrapPatch = manualDi.planFeatureBootstrap(requestedFeature);
+      if (bootstrapPatch != null) files.add(bootstrapPatch);
+    }
+
     if (operationKind != null) {
       files.addAll(
         OperationPatcher(config: config).plan(
@@ -216,6 +223,18 @@ class CleanArchitectCli {
           operationName: args[1],
         ),
       );
+      final diPatch = manualDi.planOperation(
+        kind: operationKind,
+        featureName: featureOption,
+        operationName: args[1],
+      );
+      if (diPatch != null) files.add(diPatch);
+    } else if (args.first == 'usecase' && featureOption != null) {
+      final diPatch = manualDi.planUseCase(
+        featureName: featureOption,
+        useCaseName: args[1],
+      );
+      if (diPatch != null) files.add(diPatch);
     }
 
     final writer = FileWriter(

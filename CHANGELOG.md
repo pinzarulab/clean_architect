@@ -1,3 +1,14 @@
+## 1.3.0
+
+- Reworked manual dependency injection around a single GetIt container with
+  explicit local, remote, repository, and domain registration order.
+- Added awaited local-storage initialization, including one shared ObjectBox
+  Store, before repositories and use cases become available.
+- Made feature, standalone use-case, and operation commands update manual DI
+  registrations idempotently in layered and vertical package structures.
+- Wired generated presentation entry points through `initDi` before the Flutter
+  application starts.
+
 ## 1.2.0
 
 - Added `data_layout` with backward-compatible `source_first` and new

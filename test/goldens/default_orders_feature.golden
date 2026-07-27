@@ -140,36 +140,61 @@ dev_dependencies:
   freezed: ^3.2.5
   json_serializable: ^6.14.0
 
+===== di/lib/di.dart =====
+import 'package:get_it/get_it.dart';
+
+import 'orders_di.dart';
+
+Future<void> initDi({required GetIt get}) async {
+  await initOrdersData(get);
+
+  // clean_architect:data-registrations
+
+  initOrdersDomain(get);
+
+  // clean_architect:domain-registrations
+}
+
 ===== di/lib/orders_di.dart =====
+import 'package:get_it/get_it.dart';
+import 'package:dio/dio.dart';
+
 import 'package:data/features/orders/repositories/orders_repository_impl.dart';
 import 'package:data/features/orders/local/orders_local_data_source.dart';
 import 'package:data/features/orders/remote/orders_remote_data_source.dart';
 import 'package:domain/features/orders/repositories/orders_repository.dart';
 import 'package:domain/features/orders/usecases/get_orders_list_use_case.dart';
 
-class OrdersDependencies {
-  const OrdersDependencies({
-    required this.repository,
-    required this.getOrdersListUseCase,
-  });
+Future<void> initOrdersData(GetIt get) async {
+  if (!get.isRegistered<OrdersLocalDataSource>()) {    final localDataSource = await OrdersLocalDataSourceImpl.init();
+    get.registerLazySingleton<OrdersLocalDataSource>(
+      () => localDataSource,
+    );
+  }
+  if (!get.isRegistered<OrdersRemoteDataSource>()) {
+    final dio = Dio(BaseOptions(baseUrl: ''));
+    get.registerLazySingleton<OrdersRemoteDataSource>(
+      () => OrdersRemoteDataSource(dio),
+    );
+  }
 
-  final OrdersRepository repository;
-  final GetOrdersListUseCase getOrdersListUseCase;
+  if (!get.isRegistered<OrdersRepository>()) {
+    get.registerLazySingleton<OrdersRepository>(
+      () => OrdersRepositoryImpl(
+        remoteDataSource: get<OrdersRemoteDataSource>(),
+        localDataSource: get<OrdersLocalDataSource>(),
+      ),
+    );
+  }
 }
 
-OrdersDependencies buildOrdersDependencies({
-  required OrdersRemoteDataSource remoteDataSource,
-  required OrdersLocalDataSource localDataSource,
-}) {
-  final repository = OrdersRepositoryImpl(
-    remoteDataSource: remoteDataSource,
-    localDataSource: localDataSource,
-  );
-
-  return OrdersDependencies(
-    repository: repository,
-    getOrdersListUseCase: GetOrdersListUseCase(repository),
-  );
+void initOrdersDomain(GetIt get) {
+  if (!get.isRegistered<GetOrdersListUseCase>()) {
+    get.registerLazySingleton<GetOrdersListUseCase>(
+      () => GetOrdersListUseCase(get<OrdersRepository>()),
+    );
+  }
+  // clean_architect:domain-registrations
 }
 
 ===== di/pubspec.yaml =====
@@ -186,6 +211,7 @@ dependencies:
   data:
     path: ../data
   get_it: ^9.2.1
+  dio: ^5.10.0
 
 ===== domain/lib/features/orders/entities/orders_entity.dart =====
 import 'package:freezed_annotation/freezed_annotation.dart';
@@ -279,9 +305,13 @@ class OrdersController extends GetxController {
 }
 
 ===== presentation/lib/main.dart =====
+import 'package:di/di.dart';
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initDi(get: GetIt.instance);
   runApp(const CleanArchitectApp());
 }
 

@@ -43,7 +43,7 @@ List<GeneratedFile> packageTemplates(
       path: p.join(_packageRoot(context.paths.di), 'pubspec.yaml'),
       content: _diPubspec(context),
     ),
-    ..._injectableFiles(context),
+    ..._dependencyInjectionFiles(context, includeFeature: includeDataModule),
     if (includeDataModule) ..._dataModuleFiles(context),
   ];
 
@@ -280,7 +280,7 @@ List<GeneratedFile> _verticalPackageTemplates(
       ),
       GeneratedFile(
         path: p.join(appRoot, 'lib', 'di', 'bootstrap.dart'),
-        content: _verticalBootstrap(),
+        content: _verticalBootstrap(context, includeFeature: includeDataModule),
       ),
       GeneratedFile(
         path: p.join(appRoot, 'lib', 'constants', 'app_constants.dart'),
@@ -685,6 +685,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  get_it: $_getItVersion
   ${_packageName(context.config.paths.core)}:
     path: ${p.posix.normalize(corePath.split(p.separator).join('/'))}
   ${context.cases.snake}:
@@ -886,10 +887,25 @@ class _ArchitectureRow extends StatelessWidget {
 ''';
 }
 
-String _verticalBootstrap() {
+String _verticalBootstrap(
+  TemplateContext context, {
+  required bool includeFeature,
+}) {
+  final manual =
+      context.config.dependencyInjection == DependencyInjection.manual;
+  final featureImport = manual && includeFeature
+      ? "import 'package:${context.cases.snake}/${context.cases.snake}.dart';\n"
+      : '';
+  final featureData = manual && includeFeature
+      ? '  await init${context.cases.pascal}Data(get);\n'
+      : '';
+  final featureDomain = manual && includeFeature
+      ? '  init${context.cases.pascal}Domain(get);\n'
+      : '';
   return '''
+${manual ? "import 'package:get_it/get_it.dart';\n$featureImport" : ''}
 Future<void> bootstrap() async {
-  // Register app-wide services here. Keep feature registration in each feature.
+${manual ? '  final get = GetIt.instance;\n$featureData  // clean_architect:data-registrations\n\n$featureDomain  // clean_architect:domain-registrations' : '  // Injectable feature containers initialize themselves when configured.'}
 }
 ''';
 }
@@ -1075,9 +1091,42 @@ String _objectBoxProviders(TemplateContext context) {
 ''';
 }
 
-List<GeneratedFile> _injectableFiles(TemplateContext context) {
-  if (context.config.dependencyInjection != DependencyInjection.injectable) {
-    return const [];
+List<GeneratedFile> _dependencyInjectionFiles(
+  TemplateContext context, {
+  required bool includeFeature,
+}) {
+  if (context.config.dependencyInjection == DependencyInjection.manual) {
+    if (context.config.structure == ProjectStructure.verticalPackages) {
+      return const [];
+    }
+    final feature = context.cases;
+    final featureImport = includeFeature
+        ? "import '${feature.snake}_di.dart';\n"
+        : '';
+    final dataRegistration = includeFeature
+        ? '  await init${feature.pascal}Data(get);\n'
+        : '';
+    final domainRegistration = includeFeature
+        ? '  init${feature.pascal}Domain(get);\n'
+        : '';
+    return [
+      GeneratedFile(
+        path: p.join(_packageRoot(context.paths.di), 'lib', 'di.dart'),
+        content:
+            '''
+import 'package:get_it/get_it.dart';
+
+$featureImport
+Future<void> initDi({required GetIt get}) async {
+$dataRegistration
+  // clean_architect:data-registrations
+
+$domainRegistration
+  // clean_architect:domain-registrations
+}
+''',
+      ),
+    ];
   }
 
   return [
@@ -1235,6 +1284,9 @@ String _diPubspec(TemplateContext context) {
     '  ${_packageName(context.paths.data)}:',
     '    path: ../${_packageName(context.paths.data)}',
     '  get_it: $_getItVersion',
+    if (context.config.network == NetworkClient.dio) '  dio: ^5.10.0',
+    if (context.config.localStorage == LocalStorage.objectbox)
+      '  objectbox: ^5.3.2',
   ];
 
   return '''
@@ -1317,9 +1369,13 @@ assets_generator_kit:
 
 String _presentationMain() {
   return '''
+import 'package:di/di.dart';
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initDi(get: GetIt.instance);
   runApp(const CleanArchitectApp());
 }
 

@@ -210,6 +210,9 @@ dev_dependencies:
   json_serializable: ^6.14.0
 
 ===== di/lib/auth_di.dart =====
+import 'package:get_it/get_it.dart';
+import 'package:dio/dio.dart';
+
 import 'package:data/features/auth/repositories/auth_repository_impl.dart';
 import 'package:data/features/auth/local/auth_local_data_source.dart';
 import 'package:data/features/auth/remote/auth_remote_data_source.dart';
@@ -220,41 +223,69 @@ import 'package:domain/features/auth/usecases/login_use_case.dart';
 import 'package:domain/features/auth/usecases/logout_use_case.dart';
 import 'package:domain/features/auth/usecases/save_auth_credentials_use_case.dart';
 
-class AuthDependencies {
-  const AuthDependencies({
-    required this.repository,
-    required this.loginUseCase,
-    required this.logoutUseCase,
-    required this.saveAuthCredentialsUseCase,
-    required this.getAuthCredentialsUseCase,
-    required this.clearAuthCredentialsUseCase,
-  });
+Future<void> initAuthData(GetIt get) async {
+  if (!get.isRegistered<AuthLocalDataSource>()) {    final localDataSource = await AuthLocalDataSourceImpl.init();
+    get.registerLazySingleton<AuthLocalDataSource>(() => localDataSource);
+  }
+  if (!get.isRegistered<AuthRemoteDataSource>()) {
+    final dio = Dio(BaseOptions(baseUrl: ''));
+    get.registerLazySingleton<AuthRemoteDataSource>(
+      () => AuthRemoteDataSource(dio),
+    );
+  }
 
-  final AuthRepository repository;
-  final LoginUseCase loginUseCase;
-  final LogoutUseCase logoutUseCase;
-  final SaveAuthCredentialsUseCase saveAuthCredentialsUseCase;
-  final GetAuthCredentialsUseCase getAuthCredentialsUseCase;
-  final ClearAuthCredentialsUseCase clearAuthCredentialsUseCase;
+  if (!get.isRegistered<AuthRepository>()) {
+    get.registerLazySingleton<AuthRepository>(
+      () => AuthRepositoryImpl(
+        authRemoteDataSource: get<AuthRemoteDataSource>(),
+        localDataSource: get<AuthLocalDataSource>(),
+      ),
+    );
+  }
 }
 
-AuthDependencies buildAuthDependencies({
-  required AuthRemoteDataSource authRemoteDataSource,
-  required AuthLocalDataSource localDataSource,
-}) {
-  final repository = AuthRepositoryImpl(
-    authRemoteDataSource: authRemoteDataSource,
-    localDataSource: localDataSource,
-  );
+void initAuthDomain(GetIt get) {
+  if (!get.isRegistered<LoginUseCase>()) {
+    get.registerLazySingleton<LoginUseCase>(
+      () => LoginUseCase(get<AuthRepository>()),
+    );
+  }
+  if (!get.isRegistered<LogoutUseCase>()) {
+    get.registerLazySingleton<LogoutUseCase>(
+      () => LogoutUseCase(get<AuthRepository>()),
+    );
+  }
+  if (!get.isRegistered<SaveAuthCredentialsUseCase>()) {
+    get.registerLazySingleton<SaveAuthCredentialsUseCase>(
+      () => SaveAuthCredentialsUseCase(get<AuthRepository>()),
+    );
+  }
+  if (!get.isRegistered<GetAuthCredentialsUseCase>()) {
+    get.registerLazySingleton<GetAuthCredentialsUseCase>(
+      () => GetAuthCredentialsUseCase(get<AuthRepository>()),
+    );
+  }
+  if (!get.isRegistered<ClearAuthCredentialsUseCase>()) {
+    get.registerLazySingleton<ClearAuthCredentialsUseCase>(
+      () => ClearAuthCredentialsUseCase(get<AuthRepository>()),
+    );
+  }
+  // clean_architect:domain-registrations
+}
 
-  return AuthDependencies(
-    repository: repository,
-    loginUseCase: LoginUseCase(repository),
-    logoutUseCase: LogoutUseCase(repository),
-    saveAuthCredentialsUseCase: SaveAuthCredentialsUseCase(repository),
-    getAuthCredentialsUseCase: GetAuthCredentialsUseCase(repository),
-    clearAuthCredentialsUseCase: ClearAuthCredentialsUseCase(repository),
-  );
+===== di/lib/di.dart =====
+import 'package:get_it/get_it.dart';
+
+import 'auth_di.dart';
+
+Future<void> initDi({required GetIt get}) async {
+  await initAuthData(get);
+
+  // clean_architect:data-registrations
+
+  initAuthDomain(get);
+
+  // clean_architect:domain-registrations
 }
 
 ===== di/pubspec.yaml =====
@@ -271,6 +302,7 @@ dependencies:
   data:
     path: ../data
   get_it: ^9.2.1
+  dio: ^5.10.0
 
 ===== domain/lib/features/auth/entities/auth_credentials_entity.dart =====
 import 'package:freezed_annotation/freezed_annotation.dart';
@@ -484,9 +516,13 @@ class AuthController extends GetxController {
 }
 
 ===== presentation/lib/main.dart =====
+import 'package:di/di.dart';
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initDi(get: GetIt.instance);
   runApp(const CleanArchitectApp());
 }
 

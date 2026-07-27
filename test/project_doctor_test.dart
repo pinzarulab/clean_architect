@@ -83,6 +83,20 @@ void main() {
     expect(_errors(report), contains(contains('sample.g.dart')));
   });
 
+  test('resolves generated files imported from another package', () {
+    final generated = File(
+      p.join(directory.path, 'data', 'lib', 'objectbox.g.dart'),
+    )..writeAsStringSync('// generated\n');
+    final source = File(p.join(directory.path, 'di', 'lib', 'feature_di.dart'));
+    source.parent.createSync(recursive: true);
+    source.writeAsStringSync("import 'package:data/objectbox.g.dart';\n");
+
+    final report = _doctor(directory, config).run();
+
+    expect(generated.existsSync(), isTrue);
+    expect(report.hasErrors, isFalse, reason: _errors(report).join('\n'));
+  });
+
   test('reports invalid configured package roots', () {
     final pubspec = File(p.join(directory.path, 'domain', 'pubspec.yaml'));
     pubspec.writeAsStringSync(

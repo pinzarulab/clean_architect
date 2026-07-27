@@ -597,39 +597,72 @@ GeneratedFile _di(TemplateContext context) {
     );
   }
 
+  final objectBoxImport = context.config.localStorage == LocalStorage.objectbox
+      ? "import 'package:objectbox/objectbox.dart';\nimport '${_dataFileImport(context, p.join(_packageRoot(context.paths.data), 'lib', 'objectbox.g.dart'))}';\n"
+      : '';
+  final dioImport = context.config.network == NetworkClient.dio
+      ? "import 'package:dio/dio.dart';\n"
+      : '';
+  final localInitialization =
+      context.config.localStorage == LocalStorage.objectbox
+      ? '''
+    if (!get.isRegistered<Store>()) {
+      get.registerSingleton<Store>(await openStore());
+    }
+    final localDataSource = ${feature.pascal}LocalDataSourceImpl.init(
+      get<Store>(),
+    );'''
+      : '''
+    final localDataSource = await ${feature.pascal}LocalDataSourceImpl.init();''';
+  final remoteRegistration = context.config.network == NetworkClient.dio
+      ? '''
+  if (!get.isRegistered<${feature.pascal}RemoteDataSource>()) {
+    final dio = Dio(BaseOptions(baseUrl: ''));
+    get.registerLazySingleton<${feature.pascal}RemoteDataSource>(
+      () => ${feature.pascal}RemoteDataSource(dio),
+    );
+  }
+'''
+      : '''
+  // Register ${feature.pascal}RemoteDataSource before resolving the repository.
+''';
+
   return GeneratedFile(
     path: p.join(context.paths.di, '${feature.snake}_di.dart'),
     content:
         '''
+import 'package:get_it/get_it.dart';
+$dioImport$objectBoxImport
 import '${_dataFileImport(context, p.join(dataPaths.repositories, '${feature.snake}_repository_impl.dart'))}';
 import '${_dataFileImport(context, p.join(dataPaths.localDataSources, '${feature.snake}_local_data_source.dart'))}';
 import '${_dataFileImport(context, p.join(dataPaths.remoteDataSources, '${feature.snake}_remote_data_source.dart'))}';
 import '${_domainImport(context, 'repositories/${feature.snake}_repository.dart')}';
 import '${_domainImport(context, 'usecases/get_${feature.snake}_list_use_case.dart')}';
 
-class ${feature.pascal}Dependencies {
-  const ${feature.pascal}Dependencies({
-    required this.repository,
-    required this.get${feature.pascal}ListUseCase,
-  });
-
-  final ${feature.pascal}Repository repository;
-  final Get${feature.pascal}ListUseCase get${feature.pascal}ListUseCase;
+Future<void> init${feature.pascal}Data(GetIt get) async {
+  if (!get.isRegistered<${feature.pascal}LocalDataSource>()) {$localInitialization
+    get.registerLazySingleton<${feature.pascal}LocalDataSource>(
+      () => localDataSource,
+    );
+  }
+$remoteRegistration
+  if (!get.isRegistered<${feature.pascal}Repository>()) {
+    get.registerLazySingleton<${feature.pascal}Repository>(
+      () => ${feature.pascal}RepositoryImpl(
+        remoteDataSource: get<${feature.pascal}RemoteDataSource>(),
+        localDataSource: get<${feature.pascal}LocalDataSource>(),
+      ),
+    );
+  }
 }
 
-${feature.pascal}Dependencies build${feature.pascal}Dependencies({
-  required ${feature.pascal}RemoteDataSource remoteDataSource,
-  required ${feature.pascal}LocalDataSource localDataSource,
-}) {
-  final repository = ${feature.pascal}RepositoryImpl(
-    remoteDataSource: remoteDataSource,
-    localDataSource: localDataSource,
-  );
-
-  return ${feature.pascal}Dependencies(
-    repository: repository,
-    get${feature.pascal}ListUseCase: Get${feature.pascal}ListUseCase(repository),
-  );
+void init${feature.pascal}Domain(GetIt get) {
+  if (!get.isRegistered<Get${feature.pascal}ListUseCase>()) {
+    get.registerLazySingleton<Get${feature.pascal}ListUseCase>(
+      () => Get${feature.pascal}ListUseCase(get<${feature.pascal}Repository>()),
+    );
+  }
+  // clean_architect:domain-registrations
 }
 ''',
   );
