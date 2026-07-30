@@ -1,3 +1,16 @@
+## 1.4.0
+
+- Added `clean_architect scan` to infer layered, feature-first, and vertical
+  architecture from existing package roots, source layout, and dependencies.
+- Added confidence-rated detection for paths, data layout, state management,
+  network, storage, dependency injection, model generators, Either usage, and
+  Flutter platforms.
+- Added `scan --write` with transactional validation and comment-preserving
+  updates to known `clean_architect.yaml` keys; unknown keys remain untouched.
+- Added `scan --json`, `scan --root`, and explicit `--force` handling for
+  medium-confidence structural detections.
+- Exported the scanner result, finding, diagnostic, and config-writer APIs.
+
 ## 1.3.0
 
 - Reworked manual dependency injection around a single GetIt container with

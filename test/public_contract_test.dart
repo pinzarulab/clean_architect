@@ -17,7 +17,7 @@ void main() {
     const diagnostic = DoctorDiagnostic(DoctorLevel.success, 'healthy');
     const report = DoctorReport([diagnostic]);
 
-    expect(packageVersion, '1.3.0');
+    expect(packageVersion, '1.4.0');
     expect(generatedFile.path, 'sample.dart');
     expect(featurePaths.domain, 'domain');
     expect(report.hasErrors, isFalse);
@@ -147,6 +147,7 @@ void main() {
       ['--help'],
       ['init', '--help'],
       ['doctor', '--help'],
+      ['scan', '--help'],
       ['create', 'architecture', '--help'],
       ['create', 'base', '--help'],
       ['create', 'auth', '--help'],

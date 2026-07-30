@@ -15,6 +15,7 @@ import 'operation_patcher.dart';
 import 'operation_kind.dart';
 import 'path_resolver.dart';
 import 'project_doctor.dart';
+import 'project_scanner.dart';
 import 'version.dart';
 
 class CleanArchitectCli {
@@ -56,6 +57,8 @@ class CleanArchitectCli {
           _create(command);
         case 'doctor':
           _doctor();
+        case 'scan':
+          _scan(command);
         default:
           _usageError('Unknown command: ${command.name}', parser.usage);
       }
@@ -84,6 +87,16 @@ class CleanArchitectCli {
     parser.addCommand(
       'doctor',
       ArgParser()..addFlag('help', abbr: 'h', negatable: false),
+    );
+
+    parser.addCommand(
+      'scan',
+      ArgParser()
+        ..addFlag('help', abbr: 'h', negatable: false)
+        ..addFlag('write', negatable: false)
+        ..addFlag('force', abbr: 'f', negatable: false)
+        ..addFlag('json', negatable: false)
+        ..addOption('root', defaultsTo: '.'),
     );
 
     parser.addCommand(
@@ -921,6 +934,7 @@ Usage: clean_architect <command> [arguments]
 Commands:
   init      Create clean_architect.yaml.
   create    Generate architecture, features, or feature operations.
+  scan      Detect architecture and optionally update configuration.
   doctor    Validate configuration and generated packages.
 
 Global options:
@@ -949,6 +963,21 @@ Options:
 Usage: clean_architect doctor
 
 Validates layer pubspecs, dependencies, tools, package roots, and generated files.
+''';
+    }
+    if (command == 'scan') {
+      return '''
+Usage: clean_architect scan [options]
+
+Detects package roles, architecture paths, and supported configuration from an
+existing Flutter or Dart project. Scanning is read-only unless --write is used.
+
+Options:
+      --write          Create or update clean_architect.yaml.
+  -f, --force          Accept medium-confidence structural detections.
+      --json           Print the structured scan result as JSON.
+      --root <path>    Project root to inspect. Defaults to the current folder.
+  -h, --help           Show this help.
 ''';
     }
 
@@ -1020,5 +1049,95 @@ Common options:
       }
     }
     if (report.hasErrors) exitCode = 1;
+  }
+
+  void _scan(ArgResults results) {
+    final rootValue = results['root'] as String;
+    final root = p.normalize(p.absolute(rootValue));
+    final result = ProjectScanner(projectRoot: root).scan();
+    final json = results['json'] == true;
+
+    if (json) {
+      _logger.info(result.toPrettyJson());
+    } else {
+      _printScanResult(result, showWriteHint: results['write'] != true);
+    }
+
+    if (results['write'] != true) {
+      if (result.config == null) exitCode = 1;
+      return;
+    }
+    if (!result.canWrite || result.config == null) {
+      _logger.err(
+        'The scan did not identify a complete writable architecture.',
+      );
+      exitCode = 1;
+      return;
+    }
+    if (result.requiresForce && results['force'] != true) {
+      _logger.err(
+        'Some structural paths have medium confidence. Review the report and '
+        'rerun with --force to write them.',
+      );
+      exitCode = 1;
+      return;
+    }
+
+    final target = File(p.join(root, CleanArchitectConfig.fileName));
+    final existed = target.existsSync();
+    const ScanConfigWriter().write(result, target);
+    if (!json) {
+      _logger.success('${existed ? 'updated' : 'created'} ${target.path}');
+    }
+  }
+
+  void _printScanResult(
+    ProjectScanResult result, {
+    required bool showWriteHint,
+  }) {
+    final config = result.config;
+    if (config != null) {
+      _logger.info('Detected architecture: ${config.structureName}');
+      _logger.info('Confidence: ${result.confidence.name}');
+      _logger.info('');
+      _logger.info('Paths:');
+      final pathKeys = result.findings.keys.where(
+        (key) => key.startsWith('paths.'),
+      );
+      for (final key in pathKeys) {
+        final finding = result.findings[key]!;
+        _logger.info(
+          '  ${key.substring('paths.'.length)}: ${finding.value} '
+          '(${finding.confidence.name})',
+        );
+      }
+      _logger.info('');
+      _logger.info('Options:');
+      for (final key in result.findings.keys.where(
+        (key) => !key.startsWith('paths.'),
+      )) {
+        final finding = result.findings[key]!;
+        _logger.info('  $key: ${finding.value}');
+      }
+    }
+
+    for (final diagnostic in result.diagnostics) {
+      switch (diagnostic.level) {
+        case ScanDiagnosticLevel.info:
+          _logger.info(diagnostic.message);
+        case ScanDiagnosticLevel.warning:
+          _logger.warn(diagnostic.message);
+        case ScanDiagnosticLevel.error:
+          _logger.err(diagnostic.message);
+      }
+    }
+    if (config != null && showWriteHint) {
+      _logger.info('');
+      _logger.info(
+        result.requiresForce
+            ? 'Review medium-confidence paths, then run clean_architect scan --write --force.'
+            : 'Run clean_architect scan --write to apply this configuration.',
+      );
+    }
   }
 }

@@ -1,10 +1,6 @@
-import 'package:di/di.dart';
 import 'package:flutter/material.dart';
-import 'package:get_it/get_it.dart';
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await initDi(get: GetIt.instance);
+void main() {
   runApp(const CleanArchitectApp());
 }
 
@@ -19,7 +15,9 @@ class CleanArchitectApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: const Scaffold(body: Center(child: Text('Clean Architect'))),
+      home: const Scaffold(
+        body: Center(child: Text('Clean Architect')),
+      ),
     );
   }
 }

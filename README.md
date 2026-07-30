@@ -38,6 +38,7 @@ clean_architect --version
 clean_architect <command> --help
 clean_architect create feature --help
 clean_architect init
+clean_architect scan
 clean_architect doctor
 clean_architect create architecture
 clean_architect create base
@@ -54,6 +55,7 @@ Examples:
 
 ```sh
 clean_architect init
+clean_architect scan
 clean_architect create architecture
 clean_architect create feature orders
 clean_architect create auth
@@ -70,6 +72,12 @@ Useful flags:
 ```sh
 clean_architect init --dry-run
 clean_architect init --force
+
+clean_architect scan
+clean_architect scan --write
+clean_architect scan --json
+clean_architect scan --root packages/my_app
+clean_architect scan --write --force
 
 clean_architect create architecture --dry-run
 clean_architect create auth --dry-run
@@ -1182,6 +1190,66 @@ or:
 clean_architect create auth --force
 ```
 
+## Scan Existing Projects
+
+```sh
+clean_architect scan
+```
+
+`scan` discovers architecture from the project itself. It reads nested
+`pubspec.yaml` files, package path dependencies, feature directory signatures,
+source imports and annotations, Flutter entry points, and platform folders. It
+can detect:
+
+- `layered_packages`, `feature_first`, and `vertical_packages` structures.
+- Domain, data, presentation, DI, app, core, and features paths.
+- `source_first` and `type_first` data layouts.
+- GetX, Bloc, Provider, or no generated state-management integration.
+- Dio/Retrofit, local-storage packages, manual GetIt, and Injectable.
+- Freezed, json_serializable, `Either<Failure, T>`, and asset generation.
+- Existing Flutter platform folders.
+
+The default command is read-only. Every structural path is reported with a
+confidence level:
+
+```txt
+Detected architecture: layered_packages
+Confidence: high
+
+Paths:
+  domain: domain/lib (high)
+  data: data/lib/features (high)
+  presentation: presentation/lib (high)
+  di: di/lib (high)
+```
+
+Create or update the configuration explicitly:
+
+```sh
+clean_architect scan --write
+```
+
+Existing comments and unknown YAML keys are preserved. The rendered file is
+validated before it replaces the previous configuration. If structural paths
+are ambiguous, the scanner reports its selected candidates and requires an
+explicit review followed by:
+
+```sh
+clean_architect scan --write --force
+```
+
+For tooling and CI integrations, request structured output or scan another
+root without changing the current directory:
+
+```sh
+clean_architect scan --json
+clean_architect scan --root packages/my_app
+```
+
+`--force` does not make an incomplete scan writable. Domain, data,
+presentation, and DI packages must all be identified for layered structures;
+vertical structures require app, core, and a shared feature-package parent.
+
 ## Doctor
 
 ```sh
@@ -1255,6 +1323,7 @@ compatibility and deprecation policy below.
 | Command | Status |
 | --- | --- |
 | `init` | Supported |
+| `scan` | Supported |
 | `doctor` | Supported |
 | `create architecture` | Supported |
 | `create auth` | Supported |
@@ -1280,6 +1349,8 @@ import 'package:clean_architect/clean_architect.dart';
 The 1.0 public surface includes the configuration enums and value objects,
 `CleanArchitectGenerator`, `GeneratedFile`, `OperationKind`, `PathResolver`,
 `FeaturePaths`, `ProjectDoctor`, its diagnostic/report types,
+`ProjectScanner`, `ProjectScanResult`, `ScanFinding`, `ScanDiagnostic`,
+`ScanConfigWriter`,
 `currentConfigVersion`, and `packageVersion`. Files below `lib/src` are
 implementation details and are not covered by compatibility guarantees.
 

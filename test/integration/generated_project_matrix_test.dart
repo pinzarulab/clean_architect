@@ -56,6 +56,34 @@ Future<void> _runScenario(_Scenario scenario) async {
       );
     }
 
+    final executable = p.join(repository.path, 'bin', 'clean_architect.dart');
+    final packageConfig =
+        '--packages=${p.join(repository.path, '.dart_tool', 'package_config.json')}';
+    await _run(
+      Platform.resolvedExecutable,
+      [packageConfig, executable, 'scan', '--json'],
+      workingDirectory: project.path,
+      label: 'clean_architect scan --json',
+    );
+    await _run(
+      Platform.resolvedExecutable,
+      [packageConfig, executable, 'scan', '--write', '--force'],
+      workingDirectory: project.path,
+      label: 'clean_architect scan --write',
+    );
+    final afterScanWrite = _sourceSnapshot(project);
+    await _run(
+      Platform.resolvedExecutable,
+      [packageConfig, executable, 'scan', '--write', '--force'],
+      workingDirectory: project.path,
+      label: 'rerun clean_architect scan --write',
+    );
+    expect(
+      _sourceSnapshot(project),
+      afterScanWrite,
+      reason: 'scan --write changed files when rerun.',
+    );
+
     final beforeRerun = _sourceSnapshot(project);
     for (final arguments in generationCommands) {
       await _run(
