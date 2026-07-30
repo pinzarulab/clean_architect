@@ -37,7 +37,7 @@ void main() {
     ], directory.path);
 
     expect(version.exitCode, 0);
-    expect(version.stdout, contains('clean_architect 1.4.0'));
+    expect(version.stdout, contains('clean_architect 1.4.1'));
     expect(help.exitCode, 0);
     expect(
       help.stdout,

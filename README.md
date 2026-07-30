@@ -1221,7 +1221,14 @@ Paths:
   data: data/lib/features (high)
   presentation: presentation/lib (high)
   di: di/lib (high)
+
+Configuration differences:
+  dependency_injection: manual -> injectable
 ```
+
+When differences are listed, generation continues to use the existing YAML
+until you explicitly apply the detected values. This makes stale settings such
+as manual DI in an Injectable project visible before a create command runs.
 
 Create or update the configuration explicitly:
 

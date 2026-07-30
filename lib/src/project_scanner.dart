@@ -47,6 +47,18 @@ class ScanFinding {
   };
 }
 
+class ScanConfigDifference {
+  const ScanConfigDifference({
+    required this.key,
+    required this.configuredValue,
+    required this.detectedValue,
+  });
+
+  final String key;
+  final Object configuredValue;
+  final Object detectedValue;
+}
+
 class ProjectScanResult {
   const ProjectScanResult({
     required this.projectRoot,
@@ -63,6 +75,23 @@ class ProjectScanResult {
   final List<ScanDiagnostic> diagnostics;
   final bool canWrite;
   final bool requiresForce;
+
+  List<ScanConfigDifference> differencesFrom(CleanArchitectConfig existing) {
+    final differences = <ScanConfigDifference>[];
+    for (final finding in findings.values) {
+      if (finding.confidence == ScanConfidence.low) continue;
+      final configuredValue = _configuredValue(existing, finding.key);
+      if (_scanValuesEqual(configuredValue, finding.value)) continue;
+      differences.add(
+        ScanConfigDifference(
+          key: finding.key,
+          configuredValue: configuredValue,
+          detectedValue: finding.value,
+        ),
+      );
+    }
+    return List.unmodifiable(differences);
+  }
 
   ScanConfidence get confidence {
     if (config == null || findings.isEmpty) return ScanConfidence.low;
@@ -83,6 +112,42 @@ class ProjectScanResult {
   };
 
   String toPrettyJson() => const JsonEncoder.withIndent('  ').convert(toJson());
+}
+
+Object _configuredValue(CleanArchitectConfig config, String key) {
+  return switch (key) {
+    'structure' => config.structureName,
+    'data_layout' => config.dataLayoutName,
+    'state_management' => config.stateManagementName,
+    'network' => config.networkName,
+    'local_storage' => config.localStorageName,
+    'dependency_injection' => config.dependencyInjectionName,
+    'use_asset_generator' => config.useAssetGenerator,
+    'use_either_failure' => config.useEitherFailure,
+    'models.use_freezed' => config.models.useFreezed,
+    'models.use_json_serializable' => config.models.useJsonSerializable,
+    'flutter.create_presentation' => config.flutter.createPresentation,
+    'flutter.platforms' => config.flutter.platforms,
+    'paths.domain' => config.paths.domain,
+    'paths.data' => config.paths.data,
+    'paths.presentation' => config.paths.presentation,
+    'paths.di' => config.paths.di,
+    'paths.app' => config.paths.app,
+    'paths.core' => config.paths.core,
+    'paths.features' => config.paths.features,
+    _ => throw ArgumentError.value(key, 'key', 'Unknown scan finding key.'),
+  };
+}
+
+bool _scanValuesEqual(Object left, Object right) {
+  if (left is List && right is List) {
+    if (left.length != right.length) return false;
+    for (var index = 0; index < left.length; index++) {
+      if (left[index] != right[index]) return false;
+    }
+    return true;
+  }
+  return left == right;
 }
 
 class ProjectScanner {

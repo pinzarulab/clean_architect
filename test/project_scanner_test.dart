@@ -53,6 +53,24 @@ void main() {
     expect(result.config?.paths.data, 'data/lib/features');
     expect(result.config?.paths.presentation, 'presentation/lib');
     expect(result.config?.paths.di, 'di/lib');
+
+    final differences = result.differencesFrom(CleanArchitectConfig.defaults());
+    expect(
+      differences.singleWhere(
+        (difference) => difference.key == 'dependency_injection',
+      ),
+      isA<ScanConfigDifference>()
+          .having(
+            (difference) => difference.configuredValue,
+            'configured value',
+            'manual',
+          )
+          .having(
+            (difference) => difference.detectedValue,
+            'detected value',
+            'injectable',
+          ),
+    );
   });
 
   test('detects feature-first presentation and DI roots', () {

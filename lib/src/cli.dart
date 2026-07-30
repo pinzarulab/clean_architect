@@ -1056,11 +1056,29 @@ Common options:
     final root = p.normalize(p.absolute(rootValue));
     final result = ProjectScanner(projectRoot: root).scan();
     final json = results['json'] == true;
+    final configFile = File(p.join(root, CleanArchitectConfig.fileName));
+    List<ScanConfigDifference>? differences;
+    String? comparisonWarning;
+    if (result.config != null && configFile.existsSync()) {
+      try {
+        differences = result.differencesFrom(
+          CleanArchitectConfig.fromFile(configFile),
+        );
+      } on FormatException catch (error) {
+        comparisonWarning = error.message;
+      }
+    }
 
     if (json) {
       _logger.info(result.toPrettyJson());
     } else {
-      _printScanResult(result, showWriteHint: results['write'] != true);
+      _printScanResult(
+        result,
+        showWriteHint: results['write'] != true,
+        configFileExists: configFile.existsSync(),
+        differences: differences,
+        comparisonWarning: comparisonWarning,
+      );
     }
 
     if (results['write'] != true) {
@@ -1083,7 +1101,7 @@ Common options:
       return;
     }
 
-    final target = File(p.join(root, CleanArchitectConfig.fileName));
+    final target = configFile;
     final existed = target.existsSync();
     const ScanConfigWriter().write(result, target);
     if (!json) {
@@ -1094,6 +1112,9 @@ Common options:
   void _printScanResult(
     ProjectScanResult result, {
     required bool showWriteHint,
+    required bool configFileExists,
+    required List<ScanConfigDifference>? differences,
+    required String? comparisonWarning,
   }) {
     final config = result.config;
     if (config != null) {
@@ -1118,6 +1139,24 @@ Common options:
       )) {
         final finding = result.findings[key]!;
         _logger.info('  $key: ${finding.value}');
+      }
+      _logger.info('');
+      if (!configFileExists) {
+        _logger.info('Configuration: clean_architect.yaml not found.');
+      } else if (comparisonWarning != null) {
+        _logger.warn('Configuration could not be compared: $comparisonWarning');
+      } else if (differences == null || differences.isEmpty) {
+        _logger.info(
+          'Configuration: clean_architect.yaml matches detected values.',
+        );
+      } else {
+        _logger.warn('Configuration differences:');
+        for (final difference in differences) {
+          _logger.warn(
+            '  ${difference.key}: ${difference.configuredValue} -> '
+            '${difference.detectedValue}',
+          );
+        }
       }
     }
 

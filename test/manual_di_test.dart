@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:clean_architect/clean_architect.dart';
 import 'package:clean_architect/src/cli.dart';
+import 'package:clean_architect/src/manual_di_patcher.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -99,6 +100,36 @@ clean_architect:
     expect(bootstrap, contains("import 'package:orders/orders.dart';"));
     expect(bootstrap, contains('await initOrdersData(get);'));
     expect(bootstrap, contains('initOrdersDomain(get);'));
+  });
+
+  test('reports stale manual config when the DI file uses Injectable', () {
+    final file = File(p.join('di', 'lib', 'di.dart'));
+    file.parent.createSync(recursive: true);
+    file.writeAsStringSync('''
+import 'package:injectable/injectable.dart';
+
+@InjectableInit()
+Future<void> configureDependencies() async {}
+''');
+
+    expect(
+      () => ManualDiPatcher(
+        CleanArchitectConfig.defaults(),
+      ).planFeatureBootstrap('orders'),
+      throwsA(
+        isA<FormatException>()
+            .having(
+              (error) => error.message,
+              'message',
+              contains('appears to use Injectable'),
+            )
+            .having(
+              (error) => error.message,
+              'repair command',
+              contains('clean_architect scan --write'),
+            ),
+      ),
+    );
   });
 }
 

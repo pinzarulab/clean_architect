@@ -27,6 +27,16 @@ class ManualDiPatcher {
     final dataCall = '  await init${feature.pascal}Data(get);';
     final domainCall = '  init${feature.pascal}Domain(get);';
     if (content.contains(dataCall) && content.contains(domainCall)) return null;
+    _requireMarker(
+      path: path,
+      content: content,
+      marker: '  // clean_architect:data-registrations',
+    );
+    _requireMarker(
+      path: path,
+      content: content,
+      marker: '  // clean_architect:domain-registrations',
+    );
 
     final import = config.structure == ProjectStructure.verticalPackages
         ? "import 'package:${feature.snake}/${feature.snake}.dart';"
@@ -83,6 +93,15 @@ class ManualDiPatcher {
     if (!file.existsSync()) return null;
 
     var content = file.readAsStringSync();
+    final requiresUpdate = useCases.any(
+      (useCase) => !content.contains('isRegistered<${useCase.pascal}UseCase>'),
+    );
+    if (!requiresUpdate) return null;
+    _requireMarker(
+      path: path,
+      content: content,
+      marker: '  // clean_architect:domain-registrations',
+    );
     for (final useCase in useCases) {
       final className = '${useCase.pascal}UseCase';
       if (content.contains('isRegistered<$className>')) continue;
@@ -127,6 +146,31 @@ String _insertBeforeMarker(String content, String marker, String value) {
     throw FormatException('Manual DI file is missing marker: $marker');
   }
   return content.replaceRange(index, index, value);
+}
+
+void _requireMarker({
+  required String path,
+  required String content,
+  required String marker,
+}) {
+  if (content.contains(marker)) return;
+  final appearsInjectable =
+      content.contains('@InjectableInit') ||
+      content.contains('configureDependencies') ||
+      content.contains('injector.config.dart') ||
+      content.contains("package:injectable/injectable.dart");
+  if (appearsInjectable) {
+    throw FormatException(
+      'Configuration mismatch: clean_architect.yaml uses '
+      'dependency_injection: manual, but $path appears to use Injectable. '
+      'Run "clean_architect scan --write" and retry.',
+    );
+  }
+  throw FormatException(
+    'Cannot safely update manual DI file "$path" because it is missing the '
+    'marker "$marker". Run "clean_architect scan" to verify the project '
+    'configuration, or add the clean_architect registration marker.',
+  );
 }
 
 String _cachedSubject(NameCases operation) {

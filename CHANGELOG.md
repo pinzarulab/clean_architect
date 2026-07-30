@@ -1,3 +1,9 @@
+## 1.4.1
+
+- Added detected-versus-configured drift reporting to `clean_architect scan`.
+- Replaced misleading manual-DI marker failures with an actionable Injectable
+  configuration-mismatch error.
+
 ## 1.4.0
 
 - Added `clean_architect scan` to infer layered, feature-first, and vertical
